@@ -1,0 +1,19 @@
+# Gradle
+.gradle/
+build/
+.gradle-home/
+.gradle-local/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# 其它
+run/
+*.log
