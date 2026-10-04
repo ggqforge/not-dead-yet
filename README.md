@@ -419,8 +419,10 @@ y 向下。反射会把绕 X、Z 的旋转取反（`F·Rz(θ)·F = Rz(-θ)`；Y 
 
 中间调金 `#D1A75D` 是几个候选里对比度**最低**的（1.94:1），最沉稳但最容易融进背景；
 亮面金 `#EADB84` 兼顾了金属感和分离度，所以最终选它。想更醒目还可以用 `#F8EEA5`。
-复现方式：`python tools/totem_gold.py`（统计 + 对比度）与
-`python tools/totem_gold_preview.py`（把候选色真的画到图腾上看效果）。
+上面的调色板与对比度是这样得出的：从 Loom 缓存的 `minecraft-client.jar` 里取出
+`assets/minecraft/textures/item/totem_of_undying.png`，逐像素统计不透明像素的 RGB
+分布，再按 WCAG 相对亮度公式算各候选色对躯干区域的平均对比度。
+（统计脚本是作者本地的开发工具，未随仓库分发；结论就是上面两张表，可自行核对。）
 
 绘制仍走原版 `DrawContext.drawTextWithShadow`，所以阴影由原版
 `TextRenderer` 自己推导（`(color & 0xFCFCFC) >> 2`，对 `#EADB84` 即 `#3A3621`），
