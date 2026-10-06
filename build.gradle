@@ -26,6 +26,7 @@ processResources {
     inputs.property "mod_name", project.mod_name
     inputs.property "loader_version", project.loader_version
     inputs.property "minecraft_version", project.minecraft_version
+    inputs.property "minecraft_range", project.minecraft_range
 
     filesMatching("fabric.mod.json") {
         expand(
@@ -33,7 +34,8 @@ processResources {
                 "mod_id": project.mod_id,
                 "mod_name": project.mod_name,
                 "loader_version": project.loader_version,
-                "minecraft_version": project.minecraft_version
+                "minecraft_version": project.minecraft_version,
+                "minecraft_range": project.minecraft_range
         )
     }
 }
