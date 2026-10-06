@@ -23,6 +23,21 @@ public interface TotemGradient {
      */
     int sample(float t, float phase);
 
+    /** 彩蛋 {@code _jeb} 彩虹的流动速度：每秒转多少圈色相。 */
+    float FLOW_SPEED = 0.4F;
+
+    /**
+     * 当前动画相位（圈），供 {@code _jeb} 彩蛋做流动彩虹用。
+     *
+     * <p>动画和物品栏 tooltip 共用它，保证两处流动同步；静态渐变忽略这个值。</p>
+     *
+     * <p>先对时间取模是为了避免 float 在大数值上丢精度
+     * （直接把 1.7e9 毫秒放进去，精度只剩百秒级，彩虹会一顿一顿的）。</p>
+     */
+    static float currentPhase() {
+        return (float) ((System.currentTimeMillis() % 600_000L) / 1000.0) * FLOW_SPEED;
+    }
+
     /** 渐变方向。写在颜色前面：{@code [c:y红,蓝]}。 */
     enum Direction {
         /** 横向，左 → 右。默认，也可以显式写 {@code x}。 */

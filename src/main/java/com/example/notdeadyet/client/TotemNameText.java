@@ -54,6 +54,13 @@ public final class TotemNameText {
     /** 名字里没写尺寸时使用的倍率。 */
     public static final float DEFAULT_SIZE_MULTIPLIER = 1.0F;
 
+    /**
+     * 没指定颜色时使用的预设字色 —— 不死图腾贴图上的金属亮面金 {@code #EADB84}。
+     *
+     * <p>动画与物品栏 tooltip 共用它，保证两处颜色一致。</p>
+     */
+    public static final int DEFAULT_COLOR = 0xEADB84;
+
     private static final float MIN_SIZE_MULTIPLIER = 0.25F;
     private static final float MAX_SIZE_MULTIPLIER = 6.0F;
 
@@ -76,7 +83,7 @@ public final class TotemNameText {
     private static final Map<String, Integer> COLOR_NAMES = buildColorNames();
 
     private static final TotemNameText EMPTY = new TotemNameText(
-            OrderedText.EMPTY, DEFAULT_SIZE_MULTIPLIER, null, null,
+            OrderedText.EMPTY, "", DEFAULT_SIZE_MULTIPLIER, null, null,
             TotemGradient.Direction.HORIZONTAL, true);
 
     // 解析结果缓存：名字在整段动画里是固定的，没必要每帧重跑正则。
@@ -86,6 +93,8 @@ public final class TotemNameText {
     private static String lastLoggedRaw;
 
     private final OrderedText text;
+    /** 剥掉设置块后的纯文本。tooltip 那种只能吃字符串的地方用它。 */
+    private final String plainText;
     private final float sizeMultiplier;
     /** 纯色；null 表示没指定。与 {@link #gradient} 互斥。 */
     private final Integer color;
@@ -95,9 +104,10 @@ public final class TotemNameText {
     private final TotemGradient.Direction direction;
     private final boolean empty;
 
-    private TotemNameText(OrderedText text, float sizeMultiplier, Integer color,
+    private TotemNameText(OrderedText text, String plainText, float sizeMultiplier, Integer color,
                           TotemGradient gradient, TotemGradient.Direction direction, boolean empty) {
         this.text = text;
+        this.plainText = plainText;
         this.sizeMultiplier = sizeMultiplier;
         this.color = color;
         this.gradient = gradient;
@@ -108,6 +118,16 @@ public final class TotemNameText {
     /** 已剥离设置块的显示文本。 */
     public OrderedText text() {
         return text;
+    }
+
+    /** 已剥离设置块的纯文本。 */
+    public String plainText() {
+        return plainText;
+    }
+
+    /** 实际该用的字色：指定了就用指定的，否则用预设金。 */
+    public int effectiveColor() {
+        return color != null ? color : DEFAULT_COLOR;
     }
 
     /** 命名时指定的字号倍率。 */
@@ -192,7 +212,7 @@ public final class TotemNameText {
         if (visible.isEmpty()) {
             return EMPTY;
         }
-        return new TotemNameText(Text.literal(visible).asOrderedText(), multiplier,
+        return new TotemNameText(Text.literal(visible).asOrderedText(), visible, multiplier,
                 color, gradient, direction, false);
     }
 

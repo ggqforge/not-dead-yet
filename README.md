@@ -26,6 +26,12 @@
 
 未改名的普通图腾**不会**显示任何文字，避免每次保命都冒出「不死图腾」四个字。
 
+4. 在物品栏里把鼠标放到被命名的图腾上，tooltip 显示的名字**不含方括号设置块**，
+   并且用**和动画完全相同的颜色**（没指定颜色就是预设的图腾金）。
+
+> 也就是说 `应急[颜色:红色;尺寸:2]` 在 tooltip 里就是红色的「应急」两个字。
+> 实现方式见 §5.6 —— 那里有个**很容易踩坏铁砧的陷阱**。
+
 | 名字 | 显示效果 |
 | --- | --- |
 | `第二条命` | 图腾金 `#EADB84` + 阴影（预设色） |
@@ -110,18 +116,19 @@ src/main/
 │   ├── client/
 │   │   ├── TotemAnimationMath.java      原版动画运动学（§5.1 那段代码的逐行对照）
 │   │   ├── TotemNameText.java           解析名字：末尾 [设置块]，含颜色/渐变/方向/字号
-│   │   ├── TotemGradient.java           渐变 / 彩虹的采样函数
+│   │   ├── TotemGradient.java           渐变 / 彩虹的采样函数 + 共用相位
 │   │   ├── GradientVertexConsumer.java  顶点级刷色，做出平滑渐变（§5.5.2）
+│   │   ├── TotemTooltip.java            tooltip 名字行：剥设置块 + 同色上色（§5.6）
 │   │   └── TotemNameOverlay.java        把文字画到图腾正中央之前
 │   └── mixin/
-│       └── GameRendererMixin.java       @Inject 进 renderFloatingItem
+│       ├── GameRendererMixin.java       @Inject 进 renderFloatingItem
+│       └── ItemStackMixin.java          @Inject 进 ItemStack.getTooltip（§5.6）
 └── resources/
     ├── fabric.mod.json                  元数据，版本号由 gradle.properties 注入
     └── notdeadyet.mixins.json            Mixin 配置（refmap 由 Loom 自动生成）
 ```
 
-四个类、约 300 行。整个模组只有**一处** Mixin 注入，不含任何 `@Overwrite`，
-冲突面很小。
+六个类。整个模组只有**两处** Mixin 注入，都不含 `@Overwrite`，冲突面很小。
 
 ---
 
@@ -375,7 +382,7 @@ y 向下。反射会把绕 X、Z 的旋转取反（`F·Rz(θ)·F = Rz(-θ)`；Y 
 故意做成**彩蛋**而不是常规功能——致敬原版 `_jeb` 绵羊那身一直循环变色的羊毛。
 
 它和静态渐变的区别是**会流动**：色相除了沿文字铺开，还额外叠加一个随时间推进的相位
-（`RAINBOW_FLOW_SPEED = 0.4`，即每秒转 0.4 圈）。
+（`TotemGradient.FLOW_SPEED = 0.4F`，即每秒转 0.4 圈）。
 
 实测采样（`t` 为位置，`phase` 为相位）：
 
@@ -384,8 +391,58 @@ y 向下。反射会把绕 X、Z 的旋转取反（`F·Rz(θ)·F = Rz(-θ)`；Y 
 | `phase=0` | `#FF0000` | `#00FFFF` | `#FF0000` |
 | `phase=0.25` | `#7FFF00` | `#7F00FF` | `#7FFF00` |
 
-相位用 `System.currentTimeMillis() % 600_000` 再除以 1000 得到。
+相位由 `TotemGradient.currentPhase()` 统一提供，动画和 tooltip 共用同一个值。
 **必须先取模**：直接把 1.7e9 的毫秒数放进 `float`，有效精度只剩百秒级，动画会一顿一顿的。
+
+### 5.6 物品栏 tooltip：同样的颜色，但没有设置块
+
+鼠标放在被命名的图腾上时，tooltip 里的名字是**剥掉方括号设置块之后**的文本，
+颜色和动画用的完全一致（没指定就用预设图腾金）。
+
+#### 5.6.1 关键陷阱：绝对不能改 `ItemStack.getName()`
+
+最直觉的做法是 Mixin `ItemStack.getName()`，把设置块从「名字」里抹掉。
+**这样做会毁掉铁砧功能。** 反汇编确认有两处依赖它：
+
+| 位置 | 用途 |
+| --- | --- |
+| `AnvilScreen.onSlotUpdate(...)` | 客户端用它**回填铁砧输入框** |
+| `AnvilScreenHandler.updateResult()` | 服务端用它判断「名字有没有被改过」 |
+
+一旦 `getName()` 返回剥掉设置块的文本：
+
+1. 输入框会回填成 `应急`（设置块没了）；
+2. 服务端发现输入框内容与 `getName()` 不一致，就用输入框内容覆盖 `custom_name`；
+3. 结果：**在铁砧里重新命名一次，颜色和尺寸设置就被抹掉了。**
+
+所以只注入 `ItemStack.getTooltip(...)` 的返回值，`custom_name` 本体分毫不动：
+
+```java
+@Inject(method = "getTooltip", at = @At("RETURN"), cancellable = true)
+```
+
+识别方式是比对第一行：原版把 `getName()` 的结果放在 `lines.get(0)`，
+所以先确认 `lines.get(0).getString()` 等于 `custom_name` 的纯文本，一致才替换，
+避免误伤附魔、耐久那些行。
+
+#### 5.6.2 tooltip 里的渐变只能逐字采样
+
+动画是**顶点级**调制（§5.5.2）：一个字形四个角拿到不同颜色，中间由 GPU 插值。
+tooltip 拿不到 `VertexConsumerProvider`，只能构造 `Text`，所以渐变降级为**逐字**上色：
+
+```java
+float t = count <= 1 ? 0.0F : (float) i / (count - 1);   // 按字符位置归一化
+result.append(styled(new String(codePoints, i, 1), gradient.sample(t, phase)));
+```
+
+首尾字符取到的正是两个色标本身，所以 `[c:红,蓝]` 在 tooltip 里就是首字红、末字蓝。
+
+**已知代价**：彩虹 `_jeb` 在文本上正好绕满一圈色相，因此只有 2 个字的名字会首尾同色
+（整体仍随时间变色，只是两个字颜色一样）；字数多了就有明显过渡。
+
+颜色仍走同一个 `TotemGradient`，相位共用 `TotemGradient.currentPhase()`，
+所以 tooltip 里的彩虹同样在流动——tooltip 每帧重建，这个效果是自动的。
+斜体保留原版行为（原版对所有带 `custom_name` 的物品都会把名字行设成 `ITALIC`）。
 
 ### 5.5 颜色：预设图腾金，可用命令改成任意原版颜色
 
@@ -504,10 +561,10 @@ vertex.vertex(matrix, x, y, z).color(r, g, b, a).texture(u, v).light(light).next
 | 常量 | 位置 | 默认 | 含义 |
 | --- | --- | --- | --- |
 | `TEXT_HEIGHT_OVER_TOTEM` | `TotemNameOverlay` | `0.30F` | **文字高 / 图腾高**。改成 `1.0` 就是和图腾一样高；`0.0` 级别会小到看不见 |
-| `RAINBOW_FLOW_SPEED` | `TotemNameOverlay` | `0.4F` | 彩蛋 `_jeb` 彩虹的流动速度，每秒转多少圈色相 |
+| `RAINBOW_FLOW_SPEED` → `FLOW_SPEED` | `TotemGradient` | `0.4F` | 彩蛋 `_jeb` 彩虹的流动速度，每秒转多少圈色相（动画与 tooltip 共用） |
 | `SWAY_SCALE` | `TotemNameOverlay` | `2.5F` | 屏幕平面内摆动倍率。`2.5` = ±15°，`1.0` = 图腾原本的 ±6°，`0.0` = 不摆 |
 | `TEXT_Z` | `TotemNameOverlay` | `400.0F` | 绘制层深度，越大越靠前 |
-| `DEFAULT_TEXT_COLOR` | `TotemNameOverlay` | `0xEADB84` | 没写颜色时的字色，取自图腾贴图亮面金 |
+| `DEFAULT_TEXT_COLOR` → `DEFAULT_COLOR` | `TotemNameText` | `0xEADB84` | 没写颜色时的字色，取自图腾贴图亮面金（动画与 tooltip 共用） |
 | `MIN_SIZE_MULTIPLIER` / `MAX_SIZE_MULTIPLIER` | `TotemNameText` | `0.25F` / `6.0F` | 命名后缀的允许范围 |
 | `TOTAL_TICKS` / `TOTEM_Z` | `TotemAnimationMath` | `40` / `-50.0F` | 原版常量，**不要改** |
 

@@ -68,42 +68,6 @@ public final class TotemNameOverlay {
     /** 原版 {@code DrawContext} 画文字时用的满亮度光照值，照抄以保持一致。 */
     private static final int MAX_LIGHT = 15728880;
 
-    /** 彩蛋 {@code _jeb} 彩虹的流动速度：每秒转多少圈色相。 */
-    private static final float RAINBOW_FLOW_SPEED = 0.4F;
-
-    /**
-     * 预设字色（<b>兜底色</b>）：<b>不死图腾自己的金色</b>。名字里指定了颜色时以名字为准。
-     *
-     * <p>它作为 {@code drawTextWithShadow} 的 color 参数传入，语义正是「文字样式里
-     * 没有颜色时用哪个」——所以只要名字带了颜色（JSON 组件的 {@code color} 或 {@code §}
-     * 代码），这个预设就会被自动覆盖，不需要额外判断。</p>
-     *
-     * <p>取值不是凭感觉挑的，而是把原版贴图
-     * {@code assets/minecraft/textures/item/totem_of_undying.png}
-     * （16×16，126 个不透明像素）逐一统计出来的调色板：</p>
-     *
-     * <pre>
-     * #85400F  深棕描边   23.8%
-     * #A05B23  棕色暗部   20.6%
-     * #D1A75D  中间调金   15.9%
-     * #EADB84  亮面金     13.5%   ← 本预设（金属亮面）
-     * #C58742  金色       11.1%
-     * #F8EEA5  高光金      5.6%
-     * </pre>
-     *
-     * <p><b>关于对比度</b>：文字画在图腾正中央、也就是压在躯干上（该区域平均亮度
-     * 155/255）。按 WCAG 对比度实测，{@code #EADB84} 对躯干是 <b>2.53:1</b>，
-     * 处在中间位置（{@code #D1A75D} 1.94:1 最沉稳但最容易融进背景，
-     * {@code #F8EEA5} 2.94:1 最醒目，原版白字 3.46:1）。
-     * 亮面金既是图腾「金属面」的本色，又有足够的分离度，配合原版阴影
-     * （原版算法 {@code (color &amp; 0xFCFCFC) >> 2}，对 {@code #EADB84} 即
-     * {@code #3A3621}）字形轮廓很清楚。</p>
-     *
-     * <p>想换别的档位，改这一个常量即可：{@code 0xD1A75D} 最沉稳、
-     * {@code 0xF8EEA5} 最醒目。</p>
-     */
-    private static final int DEFAULT_TEXT_COLOR = 0xEADB84;
-
     /**
      * @param context   原版传进来的绘制上下文
      * @param tickDelta 帧内插值
@@ -173,10 +137,10 @@ public final class TotemNameOverlay {
         if (gradient != null) {
             drawGradientText(context, font, text, gradient, name.direction());
         } else {
-            // 颜色优先级：设置块 [颜色:...] > 模组预设色。
+            // 颜色优先级：设置块 [颜色:...] > 模组预设色（图腾亮面金）。
             context.drawTextWithShadow(font, text,
                     -font.getWidth(text) / 2, -font.fontHeight / 2,
-                    name.color() != null ? name.color() : DEFAULT_TEXT_COLOR);
+                    name.effectiveColor());
         }
 
         matrices.pop();
@@ -200,9 +164,7 @@ public final class TotemNameOverlay {
 
         // 彩蛋 _jeb 的彩虹要流动，所以给一个随时间推进的相位（单位：圈）。
         // 静态渐变会忽略它，不必特判。
-        // 用取模避免 float 在大数值上丢精度（直接放 1.7e9 的话精度只剩百秒级）。
-        float phase = (float) ((System.currentTimeMillis() % 600_000L) / 1000.0)
-                * RAINBOW_FLOW_SPEED;
+        float phase = TotemGradient.currentPhase();
 
         // 字形的局部坐标：x 以 drawX 为起点铺满 width，y 以 drawY 为起点铺满字形高，
         // 正好当渐变区间（方向由 GradientVertexConsumer 按 direction 选用哪个轴）
