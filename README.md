@@ -1,5 +1,7 @@
 # Not Dead Yet（不死图腾名称显示）
 
+**简称：NDY**（取自 Not Dead Yet 的首字母）
+
 给不死图腾用铁砧改个名字，触发保命动画时，名字就会显示在动画图腾的正中央。
 
 **Minecraft 1.21.1 · Fabric · 纯客户端**（服务器不用装，也不需要 Fabric API）
