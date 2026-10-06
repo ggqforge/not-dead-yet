@@ -26,10 +26,13 @@
 
 未改名的普通图腾**不会**显示任何文字，避免每次保命都冒出「不死图腾」四个字。
 
-4. 在物品栏里把鼠标放到被命名的图腾上，tooltip 显示的名字**不含方括号设置块**，
-   并且用**和动画完全相同的颜色**（没指定颜色就是预设的图腾金）。
+4. 凡是**显示名字**的地方都**不显示方括号设置块**，而且颜色和动画完全一致
+   （没指定颜色就是预设的图腾金）：
 
-> 也就是说 `应急[颜色:红色;尺寸:2]` 在 tooltip 里就是红色的「应急」两个字。
+   - 物品栏里鼠标悬停时的 tooltip
+   - 快捷栏上方切换物品时弹出的名称
+
+> 也就是说 `应急[颜色:红色;尺寸:2]` 在 tooltip 和快捷栏名称里都是红色的「应急」两个字。
 > 实现方式见 §5.6 —— 那里有个**很容易踩坏铁砧的陷阱**。
 
 | 名字 | 显示效果 |
@@ -118,17 +121,18 @@ src/main/
 │   │   ├── TotemNameText.java           解析名字：末尾 [设置块]，含颜色/渐变/方向/字号
 │   │   ├── TotemGradient.java           渐变 / 彩虹的采样函数 + 共用相位
 │   │   ├── GradientVertexConsumer.java  顶点级刷色，做出平滑渐变（§5.5.2）
-│   │   ├── TotemTooltip.java            tooltip 名字行：剥设置块 + 同色上色（§5.6）
+│   │   ├── TotemTooltip.java           名字显示的统一入口：剥设置块 + 同色上色（§5.6）
 │   │   └── TotemNameOverlay.java        把文字画到图腾正中央之前
 │   └── mixin/
 │       ├── GameRendererMixin.java       @Inject 进 renderFloatingItem
+│       ├── InGameHudMixin.java          @Redirect 快捷栏上方的物品名称（§5.6）
 │       └── ItemStackMixin.java          @Inject 进 ItemStack.getTooltip（§5.6）
 └── resources/
     ├── fabric.mod.json                  元数据，版本号由 gradle.properties 注入
     └── notdeadyet.mixins.json            Mixin 配置（refmap 由 Loom 自动生成）
 ```
 
-六个类。整个模组只有**两处** Mixin 注入，都不含 `@Overwrite`，冲突面很小。
+六个类。整个模组只有**三处** Mixin 注入，都不含 `@Overwrite`，冲突面很小。
 
 ---
 
@@ -394,10 +398,22 @@ y 向下。反射会把绕 X、Z 的旋转取反（`F·Rz(θ)·F = Rz(-θ)`；Y 
 相位由 `TotemGradient.currentPhase()` 统一提供，动画和 tooltip 共用同一个值。
 **必须先取模**：直接把 1.7e9 的毫秒数放进 `float`，有效精度只剩百秒级，动画会一顿一顿的。
 
-### 5.6 物品栏 tooltip：同样的颜色，但没有设置块
+### 5.6 名字的所有显示位置：剥掉设置块 + 同色
 
-鼠标放在被命名的图腾上时，tooltip 里的名字是**剥掉方括号设置块之后**的文本，
-颜色和动画用的完全一致（没指定就用预设图腾金）。
+设置块是给模组读的，不算名字的一部分，所以凡是「显示名字」的地方都要处理：
+
+| 显示位置 | 原版从哪取值 | 本模组的注入点 |
+| --- | --- | --- |
+| 物品栏 tooltip | `ItemStack.getTooltip(...)` 的第一行 | `ItemStackMixin`（`@Inject` 到 RETURN） |
+| 快捷栏上方的物品名称 | `InGameHud.renderHeldItemTooltip` 里的 `getName()` | `InGameHudMixin`（`@Redirect`） |
+| 掉落物在地上的名字 | `ItemEntity.getName()` | **未处理**，见 §7 |
+
+两个入口最终都走同一个 `TotemTooltip.displayedName(ItemStack)`；
+颜色规则与动画共用 `TotemGradient` 和 `TotemNameText.DEFAULT_COLOR`。
+
+快捷栏那处用 `@Redirect` 而不是重写整个方法，是因为原版只把
+`Text.empty().append(getName()).formatted(rarity)` 当作文字来源 ——
+换掉那一句，居中对齐、淡出计时、阴影全都保持原样。
 
 #### 5.6.1 关键陷阱：绝对不能改 `ItemStack.getName()`
 
@@ -579,6 +595,11 @@ vertex.vertex(matrix, x, y, z).color(r, g, b, a).texture(u, v).light(light).next
 - 因为完全跟随缩放，动画首尾（`p→0` 或 `p→1`）时文字只有 15 像素高，是全程最小的时刻。
   这是绑定图腾缩放的自然结果；若不想要，把 `TEXT_HEIGHT_OVER_TOTEM` 调大或改为固定字号。
 - 按 `F1` 隐藏 HUD 时文字一起隐藏，与原版行为一致。
+- 名字的显示位置里，**掉落物躺在地上的那个名字没处理**（`ItemEntity.getName()`）。
+  它和快捷栏名称是同一类问题，但那条通路会同时影响死亡消息、`/data` 之类的输出，
+  改动面比前两处大，所以先留着。要处理的话加一个 `ItemEntityMixin` 即可。
+- tooltip 与快捷栏名称里的渐变只能**逐字**上色（拿不到 `VertexConsumerProvider`），
+  所以彩虹 `_jeb` 对只有 2 个字的名字会首尾同色，见 §5.6.2。
 - 纯客户端模组，服务器不需要装。
 
 ---

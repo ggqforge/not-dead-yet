@@ -1,12 +1,10 @@
 package com.example.notdeadyet.mixin;
 
-import com.example.notdeadyet.client.TotemNameText;
 import com.example.notdeadyet.client.TotemTooltip;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.item.tooltip.TooltipType;
 import net.minecraft.text.Text;
 import org.spongepowered.asm.mixin.Mixin;
@@ -41,7 +39,8 @@ public abstract class ItemStackMixin {
     private void notdeadyet$rewriteTotemName(Item.TooltipContext context, PlayerEntity player,
                                              TooltipType type, CallbackInfoReturnable<List<Text>> cir) {
         ItemStack stack = (ItemStack) (Object) this;
-        if (!stack.isOf(Items.TOTEM_OF_UNDYING) || !stack.contains(DataComponentTypes.CUSTOM_NAME)) {
+        Text replacement = TotemTooltip.displayedName(stack);
+        if (replacement == null) {
             return;
         }
 
@@ -53,16 +52,7 @@ public abstract class ItemStackMixin {
         // 原版把 getName() 的结果放在第一行。比对字符串确认，避免改动其它行
         // （比如附魔、耐久、提示之类）。
         Text customName = stack.get(DataComponentTypes.CUSTOM_NAME);
-        if (customName == null) {
-            return;
-        }
-        String raw = customName.getString();
-        if (!lines.get(0).getString().equals(raw)) {
-            return;
-        }
-
-        Text replacement = TotemTooltip.buildNameLine(TotemNameText.parse(raw));
-        if (replacement == null) {
+        if (customName == null || !lines.get(0).getString().equals(customName.getString())) {
             return;
         }
 

@@ -1,5 +1,8 @@
 package com.example.notdeadyet.client;
 
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
@@ -18,6 +21,27 @@ import net.minecraft.text.TextColor;
 public final class TotemTooltip {
 
     private TotemTooltip() {
+    }
+
+    /**
+     * 求「显示用的名字」：只对<b>改过名的不死图腾</b>生效。
+     *
+     * <p>这是给「展示名字」的通路用的统一入口 —— 物品栏 tooltip、快捷栏上方的
+     * 手持物品名称都调它。<b>绝对不要</b>把它接到 {@link net.minecraft.item.ItemStack#getName()}
+     * 上，原因见 {@code ItemStackMixin} 的类注释。</p>
+     *
+     * @return 该用的文本；不是改过名的图腾、或名字里没有可显示内容时返回 {@code null}
+     *         （调用方保持原版行为）
+     */
+    public static Text displayedName(ItemStack stack) {
+        if (!stack.isOf(Items.TOTEM_OF_UNDYING)) {
+            return null;
+        }
+        Text customName = stack.get(DataComponentTypes.CUSTOM_NAME);
+        if (customName == null) {
+            return null;
+        }
+        return buildNameLine(TotemNameText.parse(customName.getString()));
     }
 
     /**
