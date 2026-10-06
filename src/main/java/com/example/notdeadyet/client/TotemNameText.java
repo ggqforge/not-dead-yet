@@ -239,7 +239,8 @@ public final class TotemNameText {
 
             String[] keyValue = KEY_VALUE.split(trimmed, 2);
             if (keyValue.length != 2) {
-                problems.add(trimmed + "（缺少冒号）");
+                // 省略键名的简写：[yred,blue;2]
+                applyKeyless(result, trimmed, problems);
                 continue;
             }
 
@@ -264,27 +265,59 @@ public final class TotemNameText {
     }
 
     /**
-     * 解析颜色值。先试「方向字母 + 颜色」，失败再退回把整串当颜色（见类注释里的歧义说明）。
+     * 解析带键的颜色值。先试「方向字母 + 颜色」，失败再退回把整串当颜色
+     * （见类注释里的歧义说明）。
      */
     private static void applyColor(Settings result, String value, List<String> problems, String pairText) {
-        String trimmed = value.trim();
-        if (trimmed.isEmpty()) {
+        if (value.trim().isEmpty()) {
             problems.add(pairText + "（颜色是空的）");
             return;
         }
-
-        TotemGradient.Direction letter = TotemGradient.Direction.fromLetter(trimmed.charAt(0));
-        if (letter != null
-                && tryApplyColors(result, trimmed.substring(1).trim(), letter)) {
-            result.applied = true;
-            return;
-        }
-
-        if (tryApplyColors(result, trimmed, TotemGradient.Direction.HORIZONTAL)) {
+        if (tryColor(result, value)) {
             result.applied = true;
             return;
         }
         problems.add(pairText + "（认不出这个颜色）");
+    }
+
+    /**
+     * 省略键名的简写：{@code [yred,blue;2]} 等价于 {@code [c:yred,blue;s:2]}。
+     *
+     * <p>规则是<b>先试字号、再试颜色</b>：能当数字读的（含 {@code 2x} 这种写法）算字号，
+     * 其余一律当颜色值。</p>
+     *
+     * <p><b>为什么字号优先</b>：原版单字符颜色代码里 {@code 0}~{@code 9} 都有效，
+     * 所以 {@code [2]} 天然有歧义（字号 2 还是颜色 {@code §2} 深绿）。定成「数字优先」
+     * 之后规则是确定的、可预期的；要写数字颜色代码就显式带上键，例如 {@code [c:2]}。</p>
+     */
+    private static void applyKeyless(Settings result, String text, List<String> problems) {
+        Float size = parseSize(text);
+        if (size != null) {
+            result.size = size;
+            result.applied = true;
+            return;
+        }
+        if (tryColor(result, text)) {
+            result.applied = true;
+            return;
+        }
+        problems.add(text + "（既不是字号也不是颜色。省略键名时数字当字号、其余当颜色）");
+    }
+
+    /**
+     * 把整串当颜色值试一次（允许带方向字母）。成功返回 {@code true} 并写入 {@code result}；
+     * 失败时不留任何副作用、也不记日志。
+     */
+    private static boolean tryColor(Settings result, String value) {
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return false;
+        }
+        TotemGradient.Direction letter = TotemGradient.Direction.fromLetter(trimmed.charAt(0));
+        if (letter != null && tryApplyColors(result, trimmed.substring(1).trim(), letter)) {
+            return true;
+        }
+        return tryApplyColors(result, trimmed, TotemGradient.Direction.HORIZONTAL);
     }
 
     /**
