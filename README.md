@@ -1,4 +1,4 @@
-# Not Dead Yet（不死图腾名称显示）
+# Not Dead Yet（不死图腾名称动画）
 
 **简称：NDY**（取自 Not Dead Yet 的首字母）
 

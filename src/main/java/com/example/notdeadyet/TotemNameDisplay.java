@@ -5,7 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 不死图腾名称显示 —— 客户端模组入口。
+ * 不死图腾名称动画 —— 客户端模组入口。
  *
  * <p>功能：被铁砧改名过的不死图腾触发保命动画时，用原版像素字体把名字画在
  * 动画中的图腾正中央之前。颜色默认取图腾贴图上的亮面金 {@code #EADB84}，
@@ -21,6 +21,6 @@ public class TotemNameDisplay implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        LOGGER.info("[{}] 不死图腾名称显示已加载", MOD_ID);
+        LOGGER.info("[{}] 不死图腾名称动画已加载", MOD_ID);
     }
 }
