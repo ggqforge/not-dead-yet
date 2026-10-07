@@ -29,9 +29,15 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 @Mixin(InGameHud.class)
 public abstract class InGameHudMixin {
 
+    // require = 0 是刻意加的：@Redirect 对同一条指令是「独占」的，万一有别的 HUD /
+    // 提示框类模组也重定向了这一句 getName()，Mixin 就无法应用。
+    // 本模组的 mixin 配置是 required: true / defaultRequire: 1，
+    // 不写 require = 0 的话会让玩家**游戏直接启动崩溃**；
+    // 写了之后最坏情况只是「快捷栏名称」这一小功能失效，并在日志里留下警告。
     @Redirect(method = "renderHeldItemTooltip",
             at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/item/ItemStack;getName()Lnet/minecraft/text/Text;"))
+                    target = "Lnet/minecraft/item/ItemStack;getName()Lnet/minecraft/text/Text;"),
+            require = 0)
     private Text notdeadyet$heldItemName(ItemStack stack) {
         // 这里再调 stack.getName() 是安全的：@Redirect 只替换目标方法里那一条指令，
         // 不会影响本方法内部的调用。
